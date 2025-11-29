@@ -1,4 +1,6 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const fs = require('fs');
+const path = require('path');
+const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const { ALLOWED_GROUP_ID, ALLOWED_GROUP_NAME, PREFIX, MESSAGES } = require('./config/constants');
 
@@ -228,7 +230,57 @@ client.on('message', async msg => {
         return;
     }
 
-    // 10. AI Chat (Fallback)
+    // 10. Media (Video/Imagenes)
+    if (['video', 'imagenes', '!video', '!imagenes'].includes(command)) {
+        const mediaDir = path.join(__dirname, '../media');
+        try {
+            if (fs.existsSync(mediaDir)) {
+                const files = fs.readdirSync(mediaDir);
+                const validFiles = files.filter(file => !file.startsWith('.') && !fs.statSync(path.join(mediaDir, file)).isDirectory());
+
+                if (validFiles.length === 0) {
+                    await msg.reply('📂 La carpeta de medios está vacía.');
+                } else {
+                    await msg.reply(`📂 Enviando ${validFiles.length} archivos multimedia...`);
+                    for (const file of validFiles) {
+                        const filePath = path.join(mediaDir, file);
+                        const media = MessageMedia.fromFilePath(filePath);
+                        // Send media directly to the chat
+                        await client.sendMessage(msg.from, media);
+                    }
+                }
+            } else {
+                await msg.reply('❌ No existe la carpeta de medios.');
+            }
+        } catch (e) {
+            console.error('Error sending media:', e);
+            await msg.reply('❌ Error al enviar archivos multimedia.');
+        }
+        return;
+    }
+
+    // 11. Links
+    if (['links', '!links'].includes(command)) {
+        const linksFile = path.join(__dirname, '../links.md');
+        try {
+            if (fs.existsSync(linksFile)) {
+                const content = fs.readFileSync(linksFile, 'utf8');
+                if (content.trim()) {
+                    await msg.reply(content);
+                } else {
+                    await msg.reply('📄 El archivo de links está vacío.');
+                }
+            } else {
+                await msg.reply('❌ No existe el archivo de links.');
+            }
+        } catch (e) {
+            console.error('Error reading links:', e);
+            await msg.reply('❌ Error al leer los links.');
+        }
+        return;
+    }
+
+    // 12. AI Chat (Fallback)
     // Si no es un comando conocido, asumimos que quiere charlar
     if (!body.startsWith('!')) {
         try {
